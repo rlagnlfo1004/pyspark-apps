@@ -21,7 +21,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: archive to tar.gz
-      run: tar cvfz ./pyspark-apps.tar.gz *
+      run: tar cvfz ./apps-apps.tar.gz *
 
     - name: AWS configure credentials
       # aws 접속시 필요한 키 셋팅하는 사전 정의된 action 사용
@@ -32,10 +32,10 @@ jobs:
         aws-region: ap-northeast-2
 
     - name: upload to S3
-      run: aws s3 cp --region ap-northeast-2 ./pyspark-apps.tar.gz s3://datalake-actions-deploy-hrkim/pyspark-apps/pyspark-apps.tar.gz
+      run: aws s3 cp --region ap-northeast-2 ./apps-apps.tar.gz s3://datalake-actions-deploy-hrkim/apps-apps/apps-apps.tar.gz
 
     - name: deploy with AWS codeDeploy
       run: aws deploy create-deployment
         --application-name datalake-deploy
         --deployment-group-name spark-deploy
-        --s3-location bucket=datalake-actions-deploy-hrkim,bundleType=tgz,key=pyspark-apps/pyspark-apps.tar.gz
+        --s3-location bucket=datalake-actions-deploy-hrkim,bundleType=tgz,key=apps-apps/apps-apps.tar.gz
