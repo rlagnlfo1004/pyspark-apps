@@ -9,16 +9,16 @@ os: linux
 # source 항목이 파일이면, 해당 파일이 copy 됨
 files:
   - source: /
-    destination: /src/apps-apps
+    destination: /src/pyspark-apps
 
-# /src/apps-apps 에 동일 파일이 존재할 경우 덮어쓰기
+# /src/pyspark-apps 에 동일 파일이 존재할 경우 덮어쓰기
 # DISALLOW|OVERWRITE|RETAIN 지정 가능
 file_exists_behavior: OVERWRITE
 
 # permisstions: file copy 후 권한 상세 지정
 # pattern, except 키워드를 통해 대상 상세지정 가능
 permissions:
-  - object: /src/apps-apps
+  - object: /src/pyspark-apps
     owner: spark
     group: spark
     mode: 755
