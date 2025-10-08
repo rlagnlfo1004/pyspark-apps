@@ -23,7 +23,7 @@ emp_cnt = company_emp_df.count()
 print(f'company_emp_df count : {emp_cnt}')
 
 # employee_counts 중복 제거
-company_emp_drop_df = company_emp_df.droupDuplicates('company_id')
+company_emp_drop_df = company_emp_df.dropDuplicates('company_id')
 emp_drop_cnt = company_emp_drop_df.count()
 print(f'company_emp_df dropDuplicates count : {emp_drop_cnt}')
 
