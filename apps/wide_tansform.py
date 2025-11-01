@@ -13,7 +13,7 @@ spark = SparkSession \
     .getOrCreate()
 
 print(f'spark application start')
-job_skills_path = 'hdfs:///home/spark/sample/linkedin_jobs/job_skills.csv'
+job_skills_path = 'hdfs:///home/spark/sample/linkedin_jobs/jobs/job_skills.csv'
 job_skills_schema = 'job_id LONG, skill_abr STRING'
 skills_path = 'hdfs:///home/spark/sample/linkedin_jobs/mappings/skills.csv'
 skills_schema = 'skill_abr STRING, skill_name STRING'
