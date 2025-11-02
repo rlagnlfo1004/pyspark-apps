@@ -18,10 +18,10 @@ class RtBicycleRent(BaseStreamApp):
                                                               'stt_id          STRING,'
                                                               'lst_prk_cnt     INT'
                                                               )
-
+        spark_session.sql('CREATE DATABASE IF NOT EXISTS bicycle')
         # 결과 저장용 테이블
         spark_session.sql(f'''
-            CREATE TABLE IF NOT EXISTS bicycle_rent-info(
+            CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent-info(
                 stt_id           STRING,
                 stt_nm           STRING,
                 rent_cnt         INT,
@@ -30,12 +30,12 @@ class RtBicycleRent(BaseStreamApp):
                 stt_lttd         STRING,
                 crt_dttm         TIMESTAMP
             )
-            LOCATION 's3a://datalake-spark-sink-hrkim/bicycle_rent-info'
+            LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent-info'
             PARTITIONED BY (ymd INT, hh INT)
             STORED AS PARQUET
             '''
         )
-        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle_rent-info')
+        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent-info')
 
     def main(self):
         spark = self.get_session_builder().getOrCreate()
@@ -154,7 +154,7 @@ class RtBicycleRent(BaseStreamApp):
             processed_df.coalesce(1).write \
                     .format('parquet') \
                     .mode('append') \
-                    .option('path', 's3a://datalake-spark-sink-hrkim/bicycle_rent-info') \
+                    .option('path', 's3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent-info') \
                     .partitionBy('ymd', 'hh') \
                     .save()
             self.logger.write_log('info', f'Completed: Sink to S3 (기준 시간: {dttm})', epoch_id)
