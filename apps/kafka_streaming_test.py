@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 
-app_name = 'kafka_streaming_base'
+app_name = 'kafka_streaming_casting'
 spark = SparkSession \
     .builder \
     .appName(app_name) \
