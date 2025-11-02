@@ -37,7 +37,7 @@ class RtBicycleRent(BaseStreamApp):
                 stt_lgtd        STRING,
                 crt_dttm        TIMESTAMP
             )
-            LOCATION 's3a://datalake-spark-sink/bicycle/bicycle_rent_info'
+            LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent_info'
             PARTITIONED BY (ymd STRING, hh STRING)
             STORED AS PARQUET
               '''
@@ -164,7 +164,7 @@ class RtBicycleRent(BaseStreamApp):
             processed_df.coalesce(1).write \
                 .format("parquet") \
                 .mode('append') \
-                .option("path", "s3a://datalake-spark-sink/bicycle/bicycle_rent_info") \
+                .option("path", "s3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent_info") \
                 .partitionBy("ymd", "hh") \
                 .save()
 
