@@ -12,6 +12,11 @@ kafka_source_df = spark.readStream \
     .option('subscribe', 'spark-streaming.test') \
     .load()
 
+kafka_source_df = kafka_source_df.selectExpr(
+    "CAST(key AS STRING) AS KEY",
+    "CAST(value AS STRING) AS VALUE"
+)
+
 query = kafka_source_df.writeStream \
     .format('console') \
     .option('checkpointLocation', f'/home/spark/kafka_offsets/{app_name}') \
