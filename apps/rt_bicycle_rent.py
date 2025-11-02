@@ -8,74 +8,80 @@ from datetime import datetime
 class RtBicycleRent(BaseStreamApp):
     def __init__(self, app_name):
         super().__init__(app_name)
-        self.last_dttm= ''
+        self.SPARK_EXECUTOR_INSTANCES = '3'
+        self.SPARK_EXECUTOR_MEMORY = '2g'
+        self.SPARK_EXECUTOR_CORES = '2'
+        self.last_dttm = ''
 
     def init_call(self, spark_session: SparkSession):
         '''
         Spark 프로그램 기동할 때마다 1회만 수행되는 함수
         '''
         self.last_stt_info_df = spark_session.createDataFrame([],
-                                                              'stt_id          STRING,'
-                                                              'lst_prk_cnt     INT'
-                                                              )
-        spark_session.sql('CREATE DATABASE IF NOT EXISTS bicycle')
+                                                     'stt_id          STRING,'
+                                                     'lst_prk_cnt     INT'
+                                                     )
+
         # 결과 저장용 테이블
         spark_session.sql(f'''
-            CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent-info(
-                stt_id           STRING,
-                stt_nm           STRING,
-                rent_cnt         INT,
-                return_cnt       INT,
-                lst_prk_cnt      INT,
-                stt_lttd         STRING,
-                crt_dttm         TIMESTAMP
+            CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent_info(
+                stt_id          STRING,
+                stt_nm          STRING,
+                rent_cnt        INT,
+                return_cnt      INT,
+                lst_prk_cnt     INT,
+                stt_lttd        STRING,
+                stt_lgtd        STRING,
+                crt_dttm        TIMESTAMP
             )
-            LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent-info'
-            PARTITIONED BY (ymd INT, hh INT)
+            LOCATION 's3a://datalake-spark-sink/bicycle/bicycle_rent_info'
+            PARTITIONED BY (ymd STRING, hh STRING)
             STORED AS PARQUET
-            '''
+              '''
         )
-        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent-info')
+        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.bicycle_rent_info')
 
     def main(self):
+        # sparkSession 객체 얻기
         spark = self.get_session_builder().getOrCreate()
 
-        # 체크포인트 경로 설정
+        # DataFrame Checkpoint 경로 설정
         spark.sparkContext.setCheckpointDir(self.dataframe_chkpnt_dir)
 
-        spark.init_call(spark)
+        self.init_call(spark)
 
         streaming_query = spark.readStream \
-                .format('kafka') \
-                .option('kafka.bootstrap.servers', 'kafka01:9092, kafka02:9092, kafka03:9092') \
-                .option('subscribe', 'apis.seouldata.rt-bicycle') \
-                .option('startingOffsets', 'earliest') \
-                .option('failOnDataLoss', 'false') \
-                .option('maxOffsetsPerTrigger', '10000') \
-                .load() \
-                .selectExpr(
-                    'CAST(key AS STRING) AS KEY',
-                    'CAST(value AS STRING) AS VALUE'
-                ) \
-                .select(
-                    get_json_object(col('KEY'), '$.STT_ID').alias('stt_id'),
-                    get_json_object(col('KEY'), '$.CRT_DTTM').alias('crt_dttm'),
-                    get_json_object(col('VALUE'), '$.STT_NM').alias('stt_nm'),
-                    get_json_object(col('VALUE'), '$.TOT_RACK_CNT').alias('tot_rack_cnt'),
-                    get_json_object(col('VALUE'), '$.TOT_PRK_CNT').alias('tot_prk_cnt'),
-                    get_json_object(col('VALUE'), '$.STT_LTTD').alias('stt_lttd'),
-                    get_json_object(col('VALUE'), '$.STT_LGTD').alias('stt_lgtd')
-                ) \
-                .writeStream \
-                .foreachBatch(lambda df, epoch_id: self.for_each_batch(df, epoch_id, spark)) \
-                .option("checkpointLocation", self.kafka_offset_dir) \
-                .start()
+            .format("kafka") \
+            .option("kafka.bootstrap.servers", "kafka01:9092,kafka02:9092,kafka03:9092") \
+            .option("subscribe", "apis.seouldata.rt-bicycle") \
+            .option('failOnDataLoss', 'false') \
+            .option('startingOffsets', 'earliest') \
+            .option('maxOffsetsPerTrigger', '10000') \
+            .load() \
+            .selectExpr(
+                "CAST(key AS STRING) AS KEY",
+                "CAST(value AS STRING) AS VALUE"
+            ) \
+            .select(
+              get_json_object(col('KEY'), '$.STT_ID').alias('stt_id')
+            , get_json_object(col('KEY'), '$.CRT_DTTM').alias('crt_dttm')
+            , get_json_object(col('VALUE'), '$.STT_NM').alias('stt_nm')
+            , get_json_object(col('VALUE'), '$.TOT_RACK_CNT').cast(IntegerType()).alias('tot_rack_cnt')
+            , get_json_object(col('VALUE'), '$.TOT_PRK_CNT').cast(IntegerType()).alias('tot_prk_cnt')
+            , get_json_object(col('VALUE'), '$.STT_LTTD').alias('stt_lttd')
+            , get_json_object(col('VALUE'), '$.STT_LGTD').alias('stt_lgtd')
+        ) \
+            .writeStream \
+            .foreachBatch(lambda df, epoch: self.for_each_batch(df, epoch, spark)) \
+            .option("checkpointLocation", self.kafka_offset_dir) \
+            .start()
         streaming_query.awaitTermination()
 
-    def _for_each_batch(self, df: DataFrame, epoch_id, spark: SparkSession):
+    def _for_each_batch(self, df: DataFrame, epoch_id: int, spark: SparkSession):
         '''
-        bicycle-producer 에서 1회 전송하는 건수는 약 3400 건이나, Micro Batch 시작시 df 건수는 3400 미만이 되거나
-        maxOffsetsPerTrigger(=10000) 정도의 건수가 될 수 있으므로(Spark job Down 후 재시작시) 이를 고려
+        ** Micro Batch 크기 불규칙성 및 Spark Job 재시작 시 데이터 처리 연속성 확보 **
+        bicycle-producer 에서 1회 전송하는 건수는 약 2700 건이나, Micro Batch 시작시 df 건수는 2700 미만이 되거나
+        maxOffsetsPerTrigger(=10000) 정도의 건수가 될 수 있다.(Spark job Down 후 재시작시)
         '''
         df.persist()
         self.logger.write_log('info', f'df.count(): {df.count()}', epoch_id)
@@ -104,10 +110,10 @@ class RtBicycleRent(BaseStreamApp):
         # rent_cnt, return_cnt 에 왜곡이 생기므로 결과 전송하지 않고 last_stt_df 를 빈 데이터프레임으로 만들어 self.last_stt_info_df 만 갱신
         if len(self.last_dttm) > 0:
             time_diff = datetime.strptime(dttm, '%Y-%m-%d %H:%M:%S') - datetime.strptime(self.last_dttm, '%Y-%m-%d %H:%M:%S')
-            if time_diff.days >= 0 and time_diff > 600:    # 10 분
-                cloned_last_stt_df = cloned_last_stt_df.filter(col('stt_id') == 'noting')
+            if time_diff.days >= 0 and time_diff.seconds > 600:     # 10분
+                cloned_last_stt_df = cloned_last_stt_df.filter(col('stt_id') == 'nothing')
 
-        # last_stt_df 를 이용해 이번 시간대 대여소별 따릉이 RENT, RETURN 개수 연산
+        # 마지막 정류소별 보관 대수를 저장한 last_stt_df 를 이용해 이번 시간대 대여소별 따릉이 RENT, RETURN 개수 계산
         # 만약 last_stt_df 의 lst_prk_cnt 컬럼이 null일 경우 diff_prk_cnt 값은 0
         processed_df = stream_df.alias('s').join(
             other=cloned_last_stt_df.alias('l'),
@@ -115,28 +121,29 @@ class RtBicycleRent(BaseStreamApp):
             how='left'
         ).selectExpr(
             'stt_id',
-            'TO_TIMESTAMP(s.crt_dttm)                         AS crt_dttm',
-            's.stt_nm                                         AS stt_nm',
-            'NVL(l.lst_prk_cnt - s.tot_prk_cnt, 0)            AS diff_prk_cnt',
-            's.tot_prk_cnt                                    AS tot_prk_cnt',
-            's.stt_lttd                                       AS stt_lttd',
-            's.stt_lgtd                                       AS stt_lgtd'
+            'TO_TIMESTAMP(s.crt_dttm)                                           AS crt_dttm',
+            's.stt_nm                                                           AS stt_nm',
+            'NVL(l.lst_prk_cnt - tot_prk_cnt, 0)                                AS diff_prk_cnt',
+            's.tot_prk_cnt                                                      AS tot_prk_cnt',
+            's.stt_lttd                                                         AS stt_lttd',
+            's.stt_lgtd                                                         AS stt_lgtd',
         ).selectExpr(
-            'stt_id                                     AS stt_id',
-            'DATE_FORMAT(crt_dttm,"yyyyMMdd")                 AS ymd',
-            'DATE_FORMAT(crt_dttm,"HH")                       AS hh',
-            'stt_nm                                           AS stt_nm',
+            'stt_id                                                       AS stt_id',
+            "DATE_FORMAT(crt_dttm,'yyyyMMdd')                                   AS ymd",
+            "DATE_FORMAT(crt_dttm,'HH')                                         AS hh",
+            'STT_NM                                                             AS stt_nm',
             f'''
-                CASE WHEN diff_prk_cnt > 0 THEN   diff_prk_cnt
+                CASE WHEN diff_prk_cnt > 0 THEN   diff_prk_cnt 
                      ELSE 0
-                END                                           AS rent_cnt''',
+                END                                                             AS rent_cnt''',
             f'''
                 CASE WHEN diff_prk_cnt < 0 THEN   -1 * diff_prk_cnt
-                END                                           AS return_cnt''',
-            'tot_prk_cnt                                      AS lst_prk_cnt',
-            's.stt_lttd                                       AS stt_lttd',
-            's.stt_lgtd                                       AS stt_lgtd',
-            'crt_dttm                                         AS crt_dttm'
+                     ELSE 0
+                END                                                             AS return_cnt''',
+            'tot_prk_cnt                                                        AS lst_prk_cnt',
+            'stt_lttd                                                           AS stt_lttd',
+            'stt_lgtd                                                           AS stt_lgtd',
+            'crt_dttm                                                           AS crt_dttm'
         ).filter(
             col('stt_id').isNotNull()
         ).persist()
@@ -152,26 +159,27 @@ class RtBicycleRent(BaseStreamApp):
         if not cloned_last_stt_df.isEmpty():
             # Sink to S3
             processed_df.coalesce(1).write \
-                    .format('parquet') \
-                    .mode('append') \
-                    .option('path', 's3a://datalake-spark-sink-hrkim/bicycle/bicycle_rent-info') \
-                    .partitionBy('ymd', 'hh') \
-                    .save()
+                .format("parquet") \
+                .mode('append') \
+                .option("path", "s3a://datalake-spark-sink/bicycle/bicycle_rent_info") \
+                .partitionBy("ymd", "hh") \
+                .save()
+
             self.logger.write_log('info', f'Completed: Sink to S3 (기준 시간: {dttm})', epoch_id)
 
         now_stt_info_df = cloned_last_stt_df.alias('l').join(
-            other=processed_df.alias('p'),
-            on=['stt_id'],
-            how='full'
+                other=processed_df.alias('p'),
+                on=['stt_id'],
+                how='full'
         ).selectExpr(
-            'stt_id                                    AS stt_id',
-            'NVL(p.lst_prk_cnt, l.lst_prk_cnt)               AS lst_prk_cnt'
+            'stt_id                                           AS stt_id',
+            'NVL(p.lst_prk_cnt, l.lst_prk_cnt)                      AS lst_prk_cnt'
         ).checkpoint()
         self.logger.write_log('info', f'Completed: Checkpoint(last stt info dataframe)', epoch_id)
 
         if self.last_stt_info_df.is_cached: self.last_stt_info_df.unpersist()
         self.last_stt_info_df = now_stt_info_df.persist()
-        self.last_dttm = dttm
+        self.last_dttm = dttm       # 마지막 처리한 dttm 시간 정보 저장
 
         processed_df.unpersist()
 
