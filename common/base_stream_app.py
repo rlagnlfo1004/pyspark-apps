@@ -7,6 +7,7 @@ class BaseStreamApp():
     def __init__(self, app_name):
         self.app_name = app_name
         self.kafka_offset_dir = f'/home/spark/kafka_offsets/{app_name}'  # Kafka Offset Checkpoint 경로 지정
+        self.dataframe_chkpnt_dir = f'/home/spark/dataframe_checkpoints/{self.app_name}'  # DataFrame Checkpoint 경로 지정
 
         # Logger 생성
         self.logger = Logger(app_name)
