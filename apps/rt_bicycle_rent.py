@@ -17,6 +17,9 @@ class RtBicycleRent(BaseStreamApp):
         '''
         Spark 프로그램 기동할 때마다 1회만 수행되는 함수
         '''
+        # 데이터베이스 생성
+        spark_session.sql("CREATE DATABASE IF NOT EXISTS bicycle")
+
         self.last_stt_info_df = spark_session.createDataFrame([],
                                                      'stt_id          STRING,'
                                                      'lst_prk_cnt     INT'
