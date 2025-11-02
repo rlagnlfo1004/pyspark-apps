@@ -17,7 +17,7 @@ class Logger:
         log_type_lst = ['debug', 'info', 'warning', 'error', 'critical']
         if log_type.lower() not in log_type_lst: return
 
-        # 동일 epoch_id 에서는 self.step_num 값이 증가하도록 하고 새로운 epoch_id 에서 1로 초기화합니다.
+        # 동일 epoch_id 에서는 self.step_num 값이 증가, 새로운 epoch_id 에서 1로 초기화
         if self.last_epoch_id == epoch_id:
             self.step_num += 1
         else:
