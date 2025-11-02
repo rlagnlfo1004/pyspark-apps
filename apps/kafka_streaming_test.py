@@ -10,6 +10,7 @@ kafka_source_df = spark.readStream \
     .format('kafka') \
     .option('kafka.bootstrap.servers', 'kafka01:9092, kafka02:9092, kafka03:9092') \
     .option('subscribe', 'spark-streaming.test') \
+    .option('maxOffsetsPerTrigger', '1000') \
     .load()
 
 kafka_source_df = kafka_source_df.selectExpr(
