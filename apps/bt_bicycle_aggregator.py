@@ -48,7 +48,7 @@ class BtBicycleAggregator(BaseSparkApp):
                         total_data_cnt                  BIGINT
                 )
                 LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/station_hourly_stats'
-                PARTITIONED BY (day_type STRING, hh STRING)
+                PARTITIONED BY (day_type STRING)
                 STORED AS PARQUET
                 ''')
 
@@ -99,7 +99,7 @@ class BtBicycleAggregator(BaseSparkApp):
             .write \
             .mode('overwrite') \
             .format('parquet') \
-            .partitionBy('day_type', 'hh') \
+            .partitionBy('day_type') \
             .insertInto('bicycle.station_hourly_stats')
 
         self.logger.write_log('info', f'Completed: Incremental update (ymd={latest_ymd}). Job finished.')
