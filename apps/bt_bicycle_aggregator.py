@@ -37,6 +37,16 @@ class BtBicycleAggregator(BaseSparkApp):
         # sparkSession 객체 얻기
         spark = self.get_session_builder().getOrCreate()
 
+        # 원본 테이블(bicycle_rent_info) 파티션 갱신
+        self.logger.write_log('info', 'Running MSCK REPAIR TABLE on bicycle.bicycle_rent_info')
+        try:
+            spark.sql("MSCK REPAIR TABLE bicycle.bicycle_rent_info")
+            self.logger.write_log('info', 'MSCK REPAIR TABLE complete.')
+        except Exception as e:
+            self.logger.write_log('error', f'Failed to run MSCK REPAIR TABLE: {e}')
+            spark.stop()
+            return
+
         # 통계 결과 테이블 생성 및 덮어쓰기
         self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.station_hourly_stats')
         spark.sql(f'''
