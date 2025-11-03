@@ -59,13 +59,13 @@ class BtBicycleAggregator(BaseSparkApp):
         self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.station_hourly_stats')
 
         # 기존 누적 통계 로드
-        last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats')
+        last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats').persist()
         self.logger.write_log('info', 'Loaded old cumulative statistics.')
 
         # latest_ymd 하루치 데이터 로드 및 처리
         is_holiday_udf = udf(check_is_holiday_py, BooleanType())
         daily_stt_info_df = spark.read.table('bicycle.bicycle_rent_info') \
-                                    .where(col('ymd') == latest_ymd)
+                                    .where(col('ymd') == latest_ymd) \
 
         # 일일 통계 계산 (sum, count)
         daily_processed_df = daily_stt_info_df.withColumn(
