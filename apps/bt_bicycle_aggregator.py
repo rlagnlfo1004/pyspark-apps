@@ -48,7 +48,7 @@ class BtBicycleAggregator(BaseSparkApp):
                         total_data_cnt                  BIGINT
                 )
                 LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/station_hourly_stats'
-                PARTITIONED BY (hh STRING day_type STRING)
+                PARTITIONED BY (day_type STRING, hh STRING)
                 STORED AS PARQUET
                 ''')
 
