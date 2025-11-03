@@ -54,6 +54,7 @@ class BtBicycleAggregator(BaseSparkApp):
         # 기존 누적 통계 로드
         last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats').persist()
         self.logger.write_log('info', 'Loaded old cumulative statistics.')
+        last_stt_hourly_df.rdd.isEmpty()  # persist 강제
 
         # 처리 대상 날짜 탐색
         latest_ymd = spark.sql('SELECT MAX(ymd) FROM bicycle.bicycle_rent_info').first()[0]
