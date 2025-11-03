@@ -82,7 +82,7 @@ class BtBicycleAggregator(BaseSparkApp):
 
 
         # 기존 통계와 일일 통계 병합
-        new_processed_df =  last_stt_hourly_df.alias('l').join(
+        new_stt_hourly_df =  last_stt_hourly_df.alias('l').join(
             daily_processed_df.alias('d'),
             on=['stt_id', 'hh', 'day_type'],
             how='full'
@@ -96,12 +96,8 @@ class BtBicycleAggregator(BaseSparkApp):
                     coalesce(col('d.daily_cnt'), lit(0).cast(LongType()))).alias('total_data_cnt')
         )
 
-        # 병합된 결과 체크포인트
-        merged_stats_df = new_processed_df.checkpoint()
-        self.logger.write_log('info', f'Completed: Checkpoint(new merged stats)')
-
         # 최종 통계를 테이블에 덮어쓰기
-        merged_stats_df.coalesce(3) \
+        new_stt_hourly_df.coalesce(3) \
             .write \
             .mode('overwrite') \
             .format('parquet') \
