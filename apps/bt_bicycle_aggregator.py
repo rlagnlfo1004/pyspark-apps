@@ -52,9 +52,8 @@ class BtBicycleAggregator(BaseSparkApp):
                 ''')
 
         # 기존 누적 통계 로드
-        last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats').persist()
+        last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats')
         self.logger.write_log('info', 'Loaded old cumulative statistics.')
-        last_stt_hourly_df.rdd.isEmpty()  # persist 강제
 
         # 처리 대상 날짜 탐색
         latest_ymd = spark.sql('SELECT MAX(ymd) FROM bicycle.bicycle_rent_info').first()[0]
@@ -94,15 +93,28 @@ class BtBicycleAggregator(BaseSparkApp):
                     coalesce(col('d.daily_cnt'), lit(0).cast(LongType()))).alias('total_data_cnt')
         )
 
-        # 최종 통계를 테이블에 덮어쓰기
+        # 임시 테이블 (Staging Table)에 먼저 덮어쓰기
+        temp_table_name = "bicycle.station_hourly_stats_temp"
+        self.logger.write_log('info', f'Writing merged data to temporary table: {temp_table_name}')
         new_stt_hourly_df.coalesce(3) \
+            .write \
+            .mode('overwrite') \
+            .format('parquet') \
+            .saveAsTable(temp_table_name)
+
+        # 임시 테이블에서 읽어서 -> 최종 테이블로 덮어쓰기
+        self.logger.write_log('info', f'Moving data from temp to final table: bicycle.station_hourly_stats')
+        spark.read.table(temp_table_name) \
             .write \
             .mode('overwrite') \
             .format('parquet') \
             .insertInto('bicycle.station_hourly_stats')
 
+        # 임시 테이블 삭제
+        spark.sql(f"DROP TABLE IF EXISTS {temp_table_name}")
+        self.logger.write_log('info', f'Dropped temporary table: {temp_table_name}')
+
         self.logger.write_log('info', f'Completed: Incremental update (ymd={latest_ymd}). Job finished.')
-        last_stt_hourly_df.unpersist()
         spark.stop()
 
 if __name__ == '__main__':
