@@ -99,6 +99,7 @@ class BtBicycleAggregator(BaseSparkApp):
             .write \
             .mode('overwrite') \
             .format('parquet') \
+            .partitionBy("ymd", "hh") \
             .insertInto('bicycle.station_hourly_stats')
 
         self.logger.write_log('info', f'Completed: Incremental update (ymd={latest_ymd}). Job finished.')
