@@ -3,7 +3,7 @@ from pyspark.sql.dataframe import DataFrame
 from common.logger import Logger
 import argparse
 
-class BaseStreamApp():
+class BaseSparkApp():
     def __init__(self, app_name):
         self.app_name = app_name
         self.kafka_offset_dir = f'/home/spark/kafka_offsets/{app_name}'  # Kafka Offset Checkpoint 경로 지정
