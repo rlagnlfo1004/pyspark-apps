@@ -37,14 +37,8 @@ class BtBicycleAggregator(BaseSparkApp):
         # sparkSession 객체 얻기
         spark = self.get_session_builder().getOrCreate()
 
-        # DataFrame Checkpoint 경로 설정
-        spark.sparkContext.setCheckpointDir(self.dataframe_chkpnt_dir)
-
-        # 처리 대상 날짜 탐색
-        latest_ymd = spark.sql('SELECT MAX(ymd) FROM bicycle.bicycle_rent_info').first()[0]
-        self.logger.write_log('info', f'Processing data for MAX(ymd) = {latest_ymd}')
-
         # 통계 결과 테이블 생성 및 덮어쓰기
+        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.station_hourly_stats')
         spark.sql(f'''
                 CREATE TABLE IF NOT EXISTS bicycle.station_hourly_stats (
                         stt_id                          STRING,
@@ -54,13 +48,17 @@ class BtBicycleAggregator(BaseSparkApp):
                         total_data_cnt                  BIGINT
                 )
                 LOCATION 's3a://datalake-spark-sink-hrkim/bicycle/station_hourly_stats'
+                PARTITIONED BY (hh STRING day_type STRING)
                 STORED AS PARQUET
                 ''')
-        self.logger.write_log('info', 'Completed: CREATE TABLE IF NOT EXISTS bicycle.station_hourly_stats')
 
         # 기존 누적 통계 로드
         last_stt_hourly_df = spark.read.table('bicycle.station_hourly_stats').persist()
         self.logger.write_log('info', 'Loaded old cumulative statistics.')
+
+        # 처리 대상 날짜 탐색
+        latest_ymd = spark.sql('SELECT MAX(ymd) FROM bicycle.bicycle_rent_info').first()[0]
+        self.logger.write_log('info', f'Processing data for MAX(ymd) = {latest_ymd}')
 
         # latest_ymd 하루치 데이터 로드 및 처리
         is_holiday_udf = udf(check_is_holiday_py, BooleanType())
@@ -104,6 +102,7 @@ class BtBicycleAggregator(BaseSparkApp):
             .insertInto('bicycle.station_hourly_stats')
 
         self.logger.write_log('info', f'Completed: Incremental update (ymd={latest_ymd}). Job finished.')
+        last_stt_hourly_df.unpersist()
         spark.stop()
 
 if __name__ == '__main__':
